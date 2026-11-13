@@ -1,0 +1,9 @@
+name: d3vex-academy
+
+services:
+  web:
+    build: .
+    image: d3vex-academy:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped
