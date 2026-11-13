@@ -82,7 +82,7 @@ npm run preview  # serve the built bundle locally
 │   └── router.js         History-mode routes
 ├── public/               favicon.svg and _redirects
 ├── deploy/nginx.conf     Production server block
-├── Dockerfile            Node 22 build → nginx 1.27 runtime
+├── Dockerfile            Node 22 build → patched nginx 1.31 slim runtime
 ├── docker-compose.yml    Port 8080, restart policy
 ├── netlify.toml
 ├── vercel.json
@@ -109,7 +109,7 @@ The app uses Vue Router history mode, so every host must serve `index.html` for 
 docker compose up --build -d
 ```
 
-Open `http://localhost:8080`. Compose publishes container port 80 on host port 8080 and sets `restart: unless-stopped`. The image is a two-stage build: Node 22 runs `npm ci` and the Vite build, then nginx 1.27 serves `dist/` with SPA fallback, gzip, security headers, one-year caching for `/assets/`, and `GET /healthz`.
+Open `http://localhost:8080`. Compose publishes container port 80 on host port 8080 and sets `restart: unless-stopped`. The image is a two-stage build: Node 22 runs `npm ci` and the Vite build, then patched nginx 1.31 slim serves `dist/` with SPA fallback, gzip, security headers, one-year caching for `/assets/`, and `GET /healthz`.
 
 ```bash
 docker compose logs -f web
