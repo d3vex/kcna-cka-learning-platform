@@ -83,7 +83,8 @@ npm run preview  # serve the built bundle locally
 ├── public/               favicon.svg and _redirects
 ├── deploy/nginx.conf     Production server block
 ├── Dockerfile            Node 22 build → patched nginx 1.31 slim runtime
-├── docker-compose.yml    Port 8080, restart policy
+├── docker-compose.yml    Coolify/proxy base, no published host port
+├── docker-compose.local.yml  Loopback port 8080 for local preview
 ├── netlify.toml
 ├── vercel.json
 ├── vite.config.js        Dev port 4173 and Vitest configuration
@@ -103,19 +104,25 @@ Progress is stored in `localStorage` under `d3vex-academy-progress-v1`. If that 
 
 The app uses Vue Router history mode, so every host must serve `index.html` for unknown paths. Configuration for containers, Netlify, Vercel and plain static hosting is included. Clone from `git@github.com:d3vex/kcna-cka-learning-platform.git` or `https://github.com/d3vex/kcna-cka-learning-platform.git`.
 
-### Docker Compose (recommended)
+### Docker Compose and Coolify
+
+The base `docker-compose.yml` intentionally publishes no host port. Coolify's Traefik proxy reaches the `web` service on port 80 over the deployment network, so the container does not collide with an existing host port.
+
+For local preview or a reverse-proxied VPS, add the loopback override:
 
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build -d
 ```
 
-Open `http://localhost:8080`. Compose publishes container port 80 on host port 8080 and sets `restart: unless-stopped`. The image is a two-stage build: Node 22 runs `npm ci` and the Vite build, then patched nginx 1.31 slim serves `dist/` with SPA fallback, gzip, security headers, one-year caching for `/assets/`, and `GET /healthz`.
+Open `http://localhost:8080`. The override binds `127.0.0.1:8080`, so the service is not publicly exposed; put Caddy, nginx or Traefik in front for TLS. The image is a two-stage build: Node 22 runs `npm ci` and the Vite build, then patched nginx 1.31 slim serves `dist/` with SPA fallback, gzip, security headers, one-year caching for `/assets/`, and `GET /healthz`.
 
 ```bash
-docker compose logs -f web
-docker compose ps
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f web
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
+
+In Coolify, use build pack **Docker Compose**, compose file `/docker-compose.yml`, service `web`, exposed port `80`, and set the application domain. The base file deliberately omits `ports`; adding a host port there causes `Bind for 0.0.0.0:8080 failed: port is already allocated` behind the proxy.
 
 `/healthz` returns `200 ok`. The image `HEALTHCHECK` calls it every 30 seconds, so `docker compose ps` reports the service as healthy.
 
@@ -125,7 +132,7 @@ docker compose down
 docker build -t d3vex-academy .
 docker run -d --name d3vex-academy \
   --restart unless-stopped \
-  -p 8080:80 \
+  -p 127.0.0.1:8080:80 \
   d3vex-academy
 curl -fsS http://localhost:8080/healthz
 ```
@@ -169,7 +176,7 @@ On nginx, `deploy/nginx.conf` can be adapted as a `sites-available` server block
 
 ### Custom domain and TLS
 
-Point the domain's DNS record at the server, terminate TLS at a reverse proxy, and forward traffic to port 8080. The container itself serves HTTP only. A TLS-terminating proxy such as Caddy, nginx or Traefik can front it; this Caddy example obtains and renews certificates automatically:
+Point the domain's DNS record at the server, terminate TLS at a reverse proxy, and forward traffic to the loopback port `127.0.0.1:8080` published by `docker-compose.local.yml`. The container itself serves HTTP only; Coolify's own Traefik proxy handles this automatically when the base compose file is used. A TLS-terminating proxy such as Caddy, nginx or Traefik can front a non-Coolify host; this Caddy example obtains and renews certificates automatically:
 
 ```caddyfile
 academy.example.com {
